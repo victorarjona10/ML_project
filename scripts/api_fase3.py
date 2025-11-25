@@ -1,9 +1,9 @@
 import pandas as pd
-from sklearn.neighbors import NearestNeighbors
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+from advanced_recommendation_engine import get_recommender_instance
 
 # ==========================================
 # 1. CONFIGURACIÓN DE RUTAS
@@ -15,92 +15,60 @@ METADATA_FILE = DATASETS_DIR / 'data_metadata.csv'
 FEATURES_FILE = DATASETS_DIR / 'data_features_scaled.csv'
 
 # ==========================================
-# 2. LÓGICA DE MACHINE LEARNING
+# 2. LÓGICA DE MACHINE LEARNING AVANZADA
 # ==========================================
 
-model_knn = None
-df_metadata = None
-df_features = None
+recommender = None
 
 def load_and_train():
-    global model_knn, df_metadata, df_features
-    print("⏳ Cargando datasets...")
+    """
+    Load and train the advanced multi-algorithm recommendation system
+    """
+    global recommender
+    print("Initializing Advanced Recommendation Engine...")
+    print("=" * 60)
     try:
         if not METADATA_FILE.exists() or not FEATURES_FILE.exists():
-            print(f"❌ Error: No se encuentran archivos en {DATASETS_DIR}")
+            print(f"[ERROR] No se encuentran archivos en {DATASETS_DIR}")
             return False
 
-        df_metadata = pd.read_csv(METADATA_FILE)
-        df_features = pd.read_csv(FEATURES_FILE)
+        # Initialize the advanced recommender with 8 musical clusters
+        recommender = get_recommender_instance(
+            metadata_path=str(METADATA_FILE),
+            features_path=str(FEATURES_FILE),
+            n_clusters=8  # 8 different musical profiles
+        )
         
-        # Limpieza básica para asegurar que las búsquedas de texto funcionen bien
-        df_metadata['name'] = df_metadata['name'].astype(str)
-        df_metadata['artists'] = df_metadata['artists'].astype(str)
-
-        print(f"✅ Datos cargados: {len(df_metadata)} canciones.")
-
-        print("⏳ Entrenando modelo KNN...")
-        model_knn = NearestNeighbors(n_neighbors=6, metric='euclidean', algorithm='auto')
-        model_knn.fit(df_features)
-        print("✅ Modelo KNN listo.")
+        print("=" * 60)
+        print("[OK] Advanced Recommendation System Ready!")
+        print("   - Multi-algorithm ensemble")
+        print("   - Cluster-based specialization")
+        print("   - Artist diversity enforcement")
+        print("=" * 60)
         return True
     except Exception as e:
-        print(f"❌ Error crítico: {e}")
+        print(f"[ERROR] Error critico: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-
-def find_song_index(song_name, artist_name):
-    """
-    Busca el índice de una canción asegurando que coincida Artista y Canción.
-    """
-    if df_metadata is None: return None
-
-    # 1. Primero buscamos coincidencias por Nombre de canción
-    # case=False: ignora mayúsculas/minúsculas
-    # na=False: ignora valores nulos
-    song_matches = df_metadata[df_metadata['name'].str.contains(song_name, case=False, na=False)]
-    
-    if song_matches.empty:
-        return None
-    
-    # 2. Si el usuario especificó artista, filtramos ESTRICTAMENTE esos resultados
-    if artist_name:
-        # Buscamos dentro de las canciones que ya coincidieron en nombre
-        artist_matches = song_matches[song_matches['artists'].str.contains(artist_name, case=False, na=False)]
-        
-        if not artist_matches.empty:
-            # ¡ÉXITO! Encontramos Canción + Artista
-            # Devolvemos el primer índice de esta coincidencia exacta
-            return artist_matches.index[0]
-        else:
-            # CASO CLAVE: Existe la canción, pero NO con ese artista.
-            # Devolvemos None para no dar una canción equivocada.
-            print(f"DEBUG: Se encontró la canción '{song_name}' pero no del artista '{artist_name}'.")
-            return None
-    
-    # 3. Si el usuario NO puso artista, devolvemos la primera coincidencia del nombre
-    return song_matches.index[0]
-
-def get_recommendations_logic(song_index, k=5):
-    song_vector = df_features.iloc[[song_index]]
-    distances, indices = model_knn.kneighbors(song_vector, n_neighbors=k+1)
-    
-    rec_indices = indices[0][1:]
-    rec_distances = distances[0][1:]
-    
-    recommendations = df_metadata.iloc[rec_indices].copy()
-    recommendations['similarity_distance'] = rec_distances
-    
-    cols_to_return = ['name', 'artists', 'year', 'popularity', 'similarity_distance']
-    return recommendations[cols_to_return].to_dict(orient='records')
 
 # ==========================================
 # 3. DEFINICIÓN DE LA API
 # ==========================================
 
 app = FastAPI(
-    title="API Recomendador Musical",
-    description="API para recomendar canciones usando KNN.",
-    version="1.1"
+    title="Advanced Multi-Algorithm Music Recommendation API",
+    description="""
+    Sistema avanzado de recomendación musical que utiliza:
+    - Clustering automático en 8 perfiles musicales
+    - Algoritmos especializados por tipo de música
+    - Ensemble de múltiples métodos (KNN, Cosine Similarity, Feature-Weighted Distance)
+    - Ajuste por popularidad y diversidad de artistas
+    
+    Características analizadas: danceability, energy, acousticness, valence, 
+    instrumentalness, speechiness, loudness, popularity, y más.
+    """,
+    version="2.0"
 )
 
 class SongRequest(BaseModel):
@@ -113,39 +81,84 @@ def startup_event():
 
 @app.get("/")
 def home():
-    return {"message": "API Recomendador v1.1 Activa"}
+    return {
+        "message": "Advanced Music Recommendation API v2.0",
+        "status": "Active",
+        "features": [
+            "8 Musical Profile Clusters",
+            "Multi-Algorithm Ensemble",
+            "Artist Diversity",
+            "Feature-Based Specialization"
+        ],
+        "endpoint": "/recommend"
+    }
 
 @app.post("/recommend")
 def recommend(request: SongRequest):
-    if model_knn is None:
-        raise HTTPException(status_code=503, detail="El modelo no está cargado.")
+    """
+    Advanced recommendation endpoint using multi-algorithm ensemble
+    """
+    if recommender is None:
+        raise HTTPException(status_code=503, detail="El modelo no esta cargado.")
 
-    print(f"🔍 Buscando: '{request.song_name}' de '{request.artist_name}'")
+    print(f"[*] Buscando: '{request.song_name}' de '{request.artist_name}'")
 
-    idx = find_song_index(request.song_name, request.artist_name)
+    # Find song using the advanced recommender
+    idx = recommender.find_song_index(request.song_name, request.artist_name)
     
     if idx is None:
         # Mensaje de error más descriptivo
-        detail_msg = f"No se encontró la canción '{request.song_name}'"
+        detail_msg = f"No se encontro la cancion '{request.song_name}'"
         if request.artist_name:
             detail_msg += f" del artista '{request.artist_name}'"
         
         raise HTTPException(status_code=404, detail=detail_msg)
 
-    found_song = df_metadata.iloc[idx]
+    # Get song info
+    found_song = recommender.df_metadata.iloc[idx]
+    found_features = recommender.df_features.iloc[idx]
+    cluster_id = recommender.get_song_cluster(idx)
+    cluster_info = recommender.cluster_profiles[cluster_id]
     
     try:
-        recs = get_recommendations_logic(idx, k=5)
+        # Use advanced multi-algorithm recommendation
+        recs = recommender.get_recommendations(idx, n_recommendations=5)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
     return {
         "song_found": {
             "name": found_song['name'],
             "artist": found_song['artists'],
-            "year": int(found_song['year'])
+            "year": int(found_song['year']),
+            "popularity": int(found_features['popularity']),
+            "audio_features": {
+                "danceability": round(float(found_features['danceability']), 3),
+                "energy": round(float(found_features['energy']), 3),
+                "valence": round(float(found_features['valence']), 3),
+                "acousticness": round(float(found_features['acousticness']), 3),
+                "speechiness": round(float(found_features['speechiness']), 3),
+            },
+            "cluster": {
+                "id": int(cluster_id),
+                "type": cluster_info['type'],
+                "key_features": cluster_info['key_features']
+            }
         },
-        "recommendations": recs
+        "recommendations": recs,
+        "algorithm_info": {
+            "method": "Multi-Algorithm Ensemble",
+            "algorithms_used": [
+                "K-Nearest Neighbors (KNN)",
+                "Cosine Similarity",
+                "Feature-Weighted Distance",
+                "Popularity Adjustment"
+            ],
+            "cluster_based": True,
+            "artist_diversity": True
+        }
     }
 
 if __name__ == "__main__":
