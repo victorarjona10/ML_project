@@ -561,23 +561,40 @@ class AdvancedMusicRecommender:
         
         return song_matches.index[0]
     
-    def get_recommendations(self, song_index, n_recommendations=5):
+    def get_recommendations(self, song_index, n_recommendations=5, feedback_manager=None):
         """
         Main public method to get recommendations
         
         Args:
             song_index: Index of the song
             n_recommendations: Number of recommendations
+            feedback_manager: Optional FeedbackManager instance to apply user feedback adjustments
             
         Returns:
             List of dictionaries with recommendation details
         """
-        recommendations = self.recommend_multi_algorithm(song_index, n_recommendations)
+        # Get more recommendations than needed to account for potential filtering
+        recommendations = self.recommend_multi_algorithm(song_index, n_recommendations * 2)
+        
+        # Get original song info for feedback lookup
+        original_song = self.df_metadata.iloc[song_index]
+        original_song_name = original_song['name']
+        original_artist_name = original_song['artists']
         
         results = []
         for rec in recommendations:
             song_data = self.df_metadata.iloc[rec['index']]
             similarity_score = float(rec['score'])
+            
+            # Apply feedback adjustment if available
+            if feedback_manager is not None:
+                adjustment = feedback_manager.get_feedback_adjustment(
+                    original_song_name,
+                    original_artist_name,
+                    song_data['name'],
+                    song_data['artists']
+                )
+                similarity_score = similarity_score * adjustment
             
             results.append({
                 'name': song_data['name'],
@@ -589,7 +606,9 @@ class AdvancedMusicRecommender:
                 'cluster_type': self.cluster_profiles[self.get_song_cluster(rec['index'])]['type']
             })
         
-        return results
+        # Re-sort by adjusted similarity score and return top N
+        results.sort(key=lambda x: x['similarity_score'], reverse=True)
+        return results[:n_recommendations]
     
     def train(self):
         """Train the complete recommendation system"""

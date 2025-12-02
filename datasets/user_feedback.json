@@ -1,0 +1,44 @@
+{
+  "freestyle|['lil baby']": {
+    "song_name": "Freestyle",
+    "artist_name": "['Lil Baby']",
+    "recommendations": [
+      {
+        "name": "Long Gone",
+        "artist": "['Juice WRLD']",
+        "feedback": "positive",
+        "timestamp": "2025-12-02T17:46:35.697684"
+      },
+      {
+        "name": "Ladders",
+        "artist": "['Mac Miller']",
+        "feedback": "negative",
+        "timestamp": "2025-12-02T17:46:36.945430"
+      },
+      {
+        "name": "Baguettes in the Face (feat. NAV, Playboi Carti & A Boogie Wit da Hoodie)",
+        "artist": "['Mustard', 'NAV', 'Playboi Carti', 'A Boogie Wit da Hoodie']",
+        "feedback": "negative",
+        "timestamp": "2025-12-02T17:46:39.530481"
+      },
+      {
+        "name": "Thru Your Phone",
+        "artist": "['Cardi B']",
+        "feedback": "negative",
+        "timestamp": "2025-12-02T17:46:41.223253"
+      },
+      {
+        "name": "Boyfriend",
+        "artist": "['Selena Gomez']",
+        "feedback": "negative",
+        "timestamp": "2025-12-02T17:46:45.833135"
+      },
+      {
+        "name": "Molly (feat. Brendon Urie of Panic at the Disco)",
+        "artist": "['Lil Dicky', 'Brendon Urie']",
+        "feedback": "negative",
+        "timestamp": "2025-12-02T17:47:06.282302"
+      }
+    ]
+  }
+}

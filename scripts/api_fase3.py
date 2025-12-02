@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 from advanced_recommendation_engine import get_recommender_instance
+from feedback_manager import get_feedback_manager
 
 # ==========================================
 # 1. CONFIGURACIÓN DE RUTAS
@@ -19,12 +20,13 @@ FEATURES_FILE = DATASETS_DIR / 'data_features_scaled.csv'
 # ==========================================
 
 recommender = None
+feedback_manager = None
 
 def load_and_train():
     """
     Load and train the advanced multi-algorithm recommendation system
     """
-    global recommender
+    global recommender, feedback_manager
     print("Initializing Advanced Recommendation Engine...")
     print("=" * 60)
     try:
@@ -39,11 +41,15 @@ def load_and_train():
             n_clusters=8  # 8 different musical profiles
         )
         
+        # Initialize feedback manager
+        feedback_manager = get_feedback_manager()
+        
         print("=" * 60)
         print("[OK] Advanced Recommendation System Ready!")
         print("   - Multi-algorithm ensemble")
         print("   - Cluster-based specialization")
         print("   - Artist diversity enforcement")
+        print("   - User feedback integration")
         print("=" * 60)
         return True
     except Exception as e:
@@ -73,7 +79,14 @@ app = FastAPI(
 
 class SongRequest(BaseModel):
     song_name: str
-    artist_name: str = "" 
+    artist_name: str = ""
+
+class FeedbackRequest(BaseModel):
+    song_name: str
+    artist_name: str
+    recommended_song: str
+    recommended_artist: str
+    feedback_type: str  # "positive" or "negative" 
 
 @app.on_event("startup")
 def startup_event():
@@ -82,21 +95,27 @@ def startup_event():
 @app.get("/")
 def home():
     return {
-        "message": "Advanced Music Recommendation API v2.0",
+        "message": "Advanced Music Recommendation API v2.1 with Feedback",
         "status": "Active",
         "features": [
             "8 Musical Profile Clusters",
             "Multi-Algorithm Ensemble",
             "Artist Diversity",
-            "Feature-Based Specialization"
+            "Feature-Based Specialization",
+            "User Feedback Learning"
         ],
-        "endpoint": "/recommend"
+        "endpoints": {
+            "/recommend": "POST - Get song recommendations",
+            "/feedback": "POST - Submit feedback on recommendations",
+            "/feedback/stats": "GET - View feedback statistics"
+        }
     }
 
 @app.post("/recommend")
 def recommend(request: SongRequest):
     """
     Advanced recommendation endpoint using multi-algorithm ensemble
+    Automatically applies user feedback adjustments if available
     """
     if recommender is None:
         raise HTTPException(status_code=503, detail="El modelo no esta cargado.")
@@ -121,12 +140,25 @@ def recommend(request: SongRequest):
     cluster_info = recommender.cluster_profiles[cluster_id]
     
     try:
-        # Use advanced multi-algorithm recommendation
-        recs = recommender.get_recommendations(idx, n_recommendations=5)
+        # Use advanced multi-algorithm recommendation WITH feedback integration
+        recs = recommender.get_recommendations(
+            idx, 
+            n_recommendations=5,
+            feedback_manager=feedback_manager  # Pass feedback manager
+        )
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+    # Check if feedback was applied
+    feedback_applied = False
+    if feedback_manager:
+        feedback_data = feedback_manager.get_feedback_for_song(
+            found_song['name'], 
+            found_song['artists']
+        )
+        feedback_applied = feedback_data is not None
 
     return {
         "song_found": {
@@ -157,9 +189,67 @@ def recommend(request: SongRequest):
                 "Popularity Adjustment"
             ],
             "cluster_based": True,
-            "artist_diversity": True
+            "artist_diversity": True,
+            "feedback_applied": feedback_applied
         }
     }
+
+@app.post("/feedback")
+def submit_feedback(request: FeedbackRequest):
+    """
+    Submit user feedback for a recommendation
+    
+    Args:
+        song_name: Original song requested
+        artist_name: Original artist requested
+        recommended_song: Recommended song that was rated
+        recommended_artist: Artist of recommended song
+        feedback_type: "positive" or "negative"
+    """
+    if feedback_manager is None:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+    
+    # Validate feedback_type
+    if request.feedback_type not in ["positive", "negative"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="feedback_type must be 'positive' or 'negative'"
+        )
+    
+    try:
+        feedback_manager.add_feedback(
+            song_name=request.song_name,
+            artist_name=request.artist_name,
+            recommended_song=request.recommended_song,
+            recommended_artist=request.recommended_artist,
+            feedback_type=request.feedback_type
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Feedback '{request.feedback_type}' registered for '{request.recommended_song}'",
+            "original_song": request.song_name,
+            "original_artist": request.artist_name
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving feedback: {str(e)}")
+
+@app.get("/feedback/stats")
+def get_feedback_stats():
+    """
+    Get statistics about stored user feedback
+    """
+    if feedback_manager is None:
+        raise HTTPException(status_code=503, detail="Feedback system not initialized")
+    
+    try:
+        stats = feedback_manager.get_statistics()
+        return {
+            "status": "success",
+            "statistics": stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving stats: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
